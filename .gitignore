@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+*_send_log.csv
+*_rejected.csv
+*_needs_review.csv
+*.csv
+!examples/*.csv
+.venv/
