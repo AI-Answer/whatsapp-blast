@@ -1,13 +1,20 @@
-"""Concurrent, rate-limited, resumable WhatsApp template sender."""
+"""Concurrent, rate-limited, resumable message sender.
+
+Channel-agnostic: takes a `send_fn(number, extra) -> (status, sid, error)`
+closure so the same engine (throttling, worker pool, resumable CSV log,
+consecutive-error circuit breaker) backs both WhatsApp template sends and
+plain SMS sends. Build the closure with whatsapp_blast.channels.
+"""
 import csv
 import os
 import queue
 import threading
 import time
-
-from .twilio_api import TwilioClient
+from typing import Callable
 
 SUCCESS_STATUSES = {"queued", "accepted", "sent", "delivered"}
+
+SendFn = Callable[[str, dict], tuple[str, str, str]]
 
 
 def load_already_sent(log_path: str) -> set[str]:
@@ -21,16 +28,12 @@ def load_already_sent(log_path: str) -> set[str]:
 
 
 def run_campaign(
-    client: TwilioClient,
-    from_number: str,
-    content_sid: str,
-    targets: list[tuple[str, dict]],  # [(e164_number, {extra columns for logging / variables})]
+    send_fn: SendFn,
+    targets: list[tuple[str, dict]],  # [(e164_number, {extra columns for logging / templating})]
     log_path: str,
-    content_variables_template: dict | None = None,
     rate_per_min: int = 500,
     workers: int = 8,
     consecutive_error_limit: int = 20,
-    request_timeout: int = 30,
 ) -> dict:
     delay = 60.0 / rate_per_min
     already = load_already_sent(log_path)
@@ -57,20 +60,12 @@ def run_campaign(
                 time.sleep(wait)
             last_send_time[0] = time.monotonic()
 
-    def render_variables(extra: dict) -> dict | None:
-        if not content_variables_template:
-            return None
-        return {k: str(extra.get(v, "")) for k, v in content_variables_template.items()}
-
     def handle(item):
         if stop_flag.is_set():
             return
         number, extra = item
         throttle()
-        variables = render_variables(extra)
-        status, sid, err = client.send_template_message(
-            number, from_number, content_sid, variables, timeout=request_timeout
-        )
+        status, sid, err = send_fn(number, extra)
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         with log_lock:
             w.writerow([ts, number, *[extra.get(c, "") for c in extra_cols], status, sid, err])

@@ -1,12 +1,13 @@
 [project]
 name = "whatsapp-blast"
 version = "0.1.0"
-description = "Send a Twilio WhatsApp Content Template to every contact in a CSV, safely."
+description = "Send Twilio WhatsApp templates and SMS, from a CSV or a Google Sheet, safely."
 requires-python = ">=3.10"
 dependencies = []
 
 [project.scripts]
 whatsapp-blast = "whatsapp_blast.cli:main"
+whatsapp-blast-campaign = "whatsapp_blast.campaign:main"
 
 [build-system]
 requires = ["setuptools>=61"]

@@ -1,74 +1,108 @@
 # Runbook for an agent operating whatsapp-blast
 
-You've been given a Content Template SID and a CSV (or a path/URL to one) and asked
-to run a WhatsApp campaign. Follow this sequence. Do not skip steps to save time —
-each one exists because skipping it caused a real problem in an earlier manual run.
+You've been given some combination of a WhatsApp Content Template SID, an SMS message,
+a lead source (CSV path or Google Sheet link), and possibly a full campaign schedule
+(a webinar time + a set of steps). Follow this sequence. Do not skip steps to save
+time — each one exists because skipping it caused a real problem in an earlier manual
+run.
 
-## 1. Locate and inspect the CSV
+## 1. Locate and inspect the source
 
-Find the file, check its header row, and note the row count. CSV schemas vary — a
-phone column might be named `Number`, `number`, or `phone`; there may or may not be
-a name/email column. The tool auto-detects common names via `--phone-column` /
-`--name-column` if needed.
+CSV: find the file, check its header row. Google Sheet: confirm it's shared as
+"Anyone with the link can view" (a private sheet will error clearly). Column names
+vary — `Number`/`number`/`phone`, `First Name`/`name` — the tool auto-detects common
+ones via `--phone-column`/`--name-column` if needed.
 
 ## 2. Dry run
 
 ```bash
-whatsapp-blast --csv "<path>" --content-sid <SID>
+whatsapp-blast --csv "<path>" --content-sid <SID>              # WhatsApp
+whatsapp-blast --sheet-url "<url>" --campaign-name <name> \    # SMS
+  --channel sms --message "Hi {First Name}, ...: {Join URL}"
 ```
 
 Read the full output, specifically:
-- **Template approval status** — if not `approved`, stop and tell the human; sends
-  will fail.
-- **Template variables** — if the template has variables and you weren't told what
-  CSV columns map to them, stop and ask.
-- **Sender status** — if the WhatsApp sender isn't `ONLINE`, stop and tell the human.
+- **[WhatsApp] Template approval status** — if not `approved`, stop and tell the human.
+- **[WhatsApp] Template variables** — if the template has variables and you weren't told
+  what columns map to them, stop and ask.
+- **[WhatsApp] Sender status** — if not `ONLINE`, stop and tell the human.
+- **[SMS] The A2P warning is not boilerplate.** Before any real SMS send, check (or ask
+  the human to confirm) that the sending number's A2P 10DLC campaign's registered
+  use-case and opt-in flow actually cover this audience. A campaign registered for one
+  audience/flow (e.g. "appointment reminders, opt-in via our booking site") used for a
+  different one (e.g. webinar leads who signed up on Zoom) risks carrier filtering and
+  risks flagging the brand/campaign — independent of whether the message content itself
+  reads as "utility" rather than "marketing." This is a business decision for the human,
+  not something to route around by rewording the message.
+- **[SMS] `--message` placeholder check** — the dry run validates the template against
+  the first row; if it errors on a missing column, fix the template or the sheet before
+  proceeding.
 - **Rejected count and reasons** — sanity check these; a rejected count that's an
   unexpectedly large fraction of the list usually means the wrong phone column was
   detected.
-- **Needs-review count** — these are bare 10-digit numbers the tool refused to guess
-  on, because the same digit count can mean "US number missing its `1`" or "already-
-  complete Singapore/NZ number." **Do not silently assume one interpretation.**
-  Look at each number's shape (does it start with a plausible country code like `61`
-  Australia, `64` NZ, `65` Singapore?) and either:
-  - ask the human which country these leads are from, or
-  - if you're confident from context (e.g. the rest of the list is clearly one
-    country, or the human already told you), build an overrides CSV yourself and
-    say what you assumed and why.
+- **Needs-review count** — bare 10-digit numbers the tool refused to guess on (could be
+  "US number missing its `1`" or an already-complete Singapore/NZ/etc. number, same
+  digit count). **Do not silently assume one interpretation.** Look at the number's
+  shape (plausible country code like `61` Australia, `64` NZ, `65` Singapore vs. a
+  real NANP area code) and either ask the human, or if confident from context, build
+  an overrides CSV yourself and say what you assumed and why.
 
 ## 3. Get explicit go-ahead before sending
 
-Sending WhatsApp messages to real people is not reversible. Before adding `--send`,
-report back to the human: template name, message body, total recipient count after
-dedup/rejection, and the sender number. Wait for a clear yes. This applies even if
-you were told "launch it" in advance for a *different* CSV or template earlier in
-the conversation — each new template SID or CSV is a new decision.
+Sending to real people is not reversible. Before adding `--send`, report back: channel,
+message/template content, total recipient count after dedup/rejection, and the sender.
+Wait for a clear yes. This applies even if you were told "launch it" for a *different*
+source or template earlier in the conversation — each new template/message/source is a
+new decision, not a standing authorization.
 
 ## 4. Send
 
 ```bash
-whatsapp-blast --csv "<path>" --content-sid <SID> --send \
-  --rate 500 --workers 8 \
-  [--variables '{"1": "col_name"}'] \
+whatsapp-blast --sheet-url "<url>" --campaign-name <name> --channel sms \
+  --message "..." --send --rate 500 --workers 8 \
   [--assume-country-for-10-digit 1] [--overrides overrides.csv]
 ```
 
-Pick `--rate` based on list size: 300-500/min is a reasonable default; go higher only
-if the human asks for faster and the run so far shows low error rates.
+Pick `--rate` based on list size and channel: 300-500/min is reasonable for WhatsApp;
+for SMS through an A2P 10DLC number, the *registered* per-carrier throughput (check
+`Compliance/Usa2p` on the number's Messaging Service via the Twilio API) is usually far
+lower than that and only applies to US destinations — don't assume WhatsApp-speed
+throughput carries over.
 
-## 5. If it aborts on consecutive errors
+## 5. Full multi-step campaigns
+
+If you've been given a schedule (e.g. "call 2h before, SMS + WhatsApp 20 min before,
+second WhatsApp 15 min in"), write it as a `campaign.json` (see
+`examples/campaign.example.json`) instead of running `whatsapp-blast` by hand per step.
+Dry-run it first the same way:
+
+```bash
+whatsapp-blast-campaign --config campaign.json
+```
+
+Check the printed schedule's actual clock times against what the human asked for before
+ever adding `--send` — a wrong `webinar_start` timezone silently shifts every step.
+
+**Call steps always print "SKIPPED: no voice provider wired in."** This is intentional,
+not a bug — there's no voice-calling integration in this tool yet (it needs credentials
+and an API reference the human hasn't provided). Don't build a fake call-sender to make
+it "work"; report the gap plainly and, if asked to add real call support, implement it
+in a new `whatsapp_blast/voice.py` against real credentials, then wire it into
+`campaign.py`'s step loop.
+
+## 6. If it aborts on consecutive errors
 
 The tool stops itself after too many errors in a row rather than burning through the
 whole list blind. Check the tail of the send log for the error pattern:
-- A single disallowed-country message (e.g. Twilio blocking Iran) is not a bug —
-  that's Twilio's own compliance rule, safe to ignore and move on.
+- A single disallowed-country message (e.g. Twilio blocking Iran) is not a bug — that's
+  Twilio's own compliance rule, safe to ignore and move on.
 - A run of network/timeout errors is usually transient — re-run the *exact same
   command*; it resumes from the log and won't double-send.
-- Twilio auth or 4xx errors on every message mean something is actually
-  misconfigured (bad credentials, bad content SID, sender not approved) — stop and
-  report the specific error to the human rather than retrying blindly.
+- Twilio auth or 4xx errors on every message mean something is actually misconfigured
+  (bad credentials, bad content SID, sender/campaign not approved) — stop and report
+  the specific error to the human rather than retrying blindly.
 
-## 6. Report results
+## 7. Report results
 
 Give the human: total targeted, total sent, total errored (with a breakdown of error
 reasons), and where the log/rejected/review files live. Don't just say "done."

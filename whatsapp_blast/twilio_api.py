@@ -74,3 +74,28 @@ class TwilioClient:
             return "error", "", msg
         except Exception as e:
             return "error", "", str(e)
+
+    def send_sms(
+        self, to_number: str, from_number: str, body: str, timeout: int = 30,
+    ) -> tuple[str, str, str]:
+        """Plain SMS/MMS via a phone number (not a WhatsApp Content Template).
+        Returns (status, message_sid, error_message)."""
+        params = {"To": to_number, "From": from_number, "Body": body}
+        body_enc = urllib.parse.urlencode(params).encode()
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{self.account_sid}/Messages.json"
+        req = urllib.request.Request(url, data=body_enc, method="POST")
+        req.add_header("Authorization", self._auth_header)
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read())
+                return data.get("status", "unknown"), data.get("sid", ""), ""
+        except urllib.error.HTTPError as e:
+            try:
+                err = json.loads(e.read())
+                msg = err.get("message", str(e))
+            except Exception:
+                msg = str(e)
+            return "error", "", msg
+        except Exception as e:
+            return "error", "", str(e)
