@@ -37,6 +37,7 @@ from .normalize import classify, load_digit_overrides
 from .sender import run_campaign
 from .sheets import load_google_sheet
 from .twilio_api import TwilioClient
+from .voice import VapiError, launch_vapi_campaign, targets_to_vapi_customers
 
 PHONE_COLUMN_CANDIDATES = ["number", "phone", "phone_number", "to", "whatsapp"]
 NAME_COLUMN_CANDIDATES = ["name", "first_name", "first name", "full_name"]
@@ -70,7 +71,7 @@ def build_targets(rows, overrides, assume_country_for_10_digit):
         elif result.e164 not in seen:
             seen.add(result.e164)
             targets.append((result.e164, row))
-    return targets, rejected, review
+    return targets, rejected, review, name_col
 
 
 def build_parser():
@@ -111,12 +112,26 @@ def main(argv=None) -> int:
 
     print("\nFetching leads...")
     rows = load_google_sheet(config["sheet_url"], gid=config.get("gid"))
-    targets, rejected, review = build_targets(rows, overrides, assume_country)
+    targets, rejected, review, name_col = build_targets(rows, overrides, assume_country)
     print(f"  total rows: {len(rows)}, ready: {len(targets)}, "
           f"rejected: {len(rejected)}, needs review: {len(review)}")
     if review:
         print(f"  WARNING: {len(review)} ambiguous numbers will be SKIPPED on every step "
               f"unless you set assume_country_for_10_digit or overrides_csv in the config.")
+
+    call_steps = [s for s in steps if s["type"] == "call"]
+    vapi_api_key = os.environ.get("VAPI_API_KEY")
+    for s in call_steps:
+        if s.get("provider") != "vapi":
+            continue
+        missing = [k for k in ("assistant_id", "phone_number_id") if not s.get(k)]
+        if missing:
+            print(f"\nCall step at T{s['offset_minutes']:+d}min is missing {missing} -- "
+                  f"add them to the step in {args.config}.", file=sys.stderr)
+            return 2
+        if not vapi_api_key:
+            print("\nCall step(s) use provider=vapi but VAPI_API_KEY is not set.", file=sys.stderr)
+            return 2
 
     client = TwilioClient(args.account_sid, args.auth_token)
 
@@ -134,10 +149,24 @@ def main(argv=None) -> int:
             time.sleep(wait)
 
         if s["type"] == "call":
-            print(f"\n[{s['type']}] SKIPPED: no voice provider is wired into this tool yet "
-                  f"(config asked for provider={s.get('provider')!r}). This is a real gap, "
-                  f"not a silent failure -- add call support in whatsapp_blast/voice.py once "
-                  f"credentials are available, then wire it in here.")
+            if s.get("provider") != "vapi":
+                print(f"\n[call] SKIPPED: provider={s.get('provider')!r} is not implemented "
+                      f"(only 'vapi' is wired in). This is a real gap, not a silent failure.")
+                continue
+            customers = targets_to_vapi_customers(targets, name_column=name_col)
+            campaign_label = f"{os.path.splitext(os.path.basename(args.config))[0]} {s['type']}_{s['offset_minutes']:+d}"
+            print(f"\n[call] Launching Vapi campaign '{campaign_label}' for {len(customers)} contacts...")
+            try:
+                result = launch_vapi_campaign(
+                    campaign_label, customers, vapi_api_key,
+                    s["assistant_id"], s["phone_number_id"],
+                    max_concurrency=s.get("concurrency", 5),
+                    delay_minutes=s.get("delay_minutes", 1),
+                )
+                print(f"  launched: id={result.get('id')} status={result.get('status')}")
+                print(f"  check status: https://api.vapi.ai/v2/campaign/{result.get('id')}")
+            except VapiError as e:
+                print(f"  ERROR: {e}")
             continue
 
         step_name = f"{s['type']}_{s['offset_minutes']:+d}"

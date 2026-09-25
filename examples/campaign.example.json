@@ -3,7 +3,9 @@
   "sheet_url": "https://docs.google.com/spreadsheets/d/123YgW7b02SMFFj7xXq-Qe4lzMrFqGYoyK8ikxyuo0oQ/edit",
   "assume_country_for_10_digit": "1",
   "steps": [
-    { "type": "call", "offset_minutes": -120, "provider": "vapi" },
+    { "type": "call", "offset_minutes": -120, "provider": "vapi",
+      "assistant_id": "your-vapi-assistant-id", "phone_number_id": "your-vapi-phone-number-id",
+      "concurrency": 5 },
     { "type": "sms", "offset_minutes": -20, "from": "+19163983595",
       "message": "Hi {First Name}, the event is starting soon: {Join URL}" },
     { "type": "whatsapp", "offset_minutes": -20, "from": "whatsapp:+15559157609",

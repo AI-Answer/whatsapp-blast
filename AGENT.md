@@ -83,12 +83,15 @@ whatsapp-blast-campaign --config campaign.json
 Check the printed schedule's actual clock times against what the human asked for before
 ever adding `--send` — a wrong `webinar_start` timezone silently shifts every step.
 
-**Call steps always print "SKIPPED: no voice provider wired in."** This is intentional,
-not a bug — there's no voice-calling integration in this tool yet (it needs credentials
-and an API reference the human hasn't provided). Don't build a fake call-sender to make
-it "work"; report the gap plainly and, if asked to add real call support, implement it
-in a new `whatsapp_blast/voice.py` against real credentials, then wire it into
-`campaign.py`'s step loop.
+**Call steps use Vapi** (`whatsapp_blast/voice.py`) — a `call` step needs
+`provider: "vapi"`, `assistant_id`, `phone_number_id`, and `VAPI_API_KEY` set. It reuses
+the exact same target list (dedup'd, normalized numbers) as the WhatsApp/SMS steps, so
+one sheet drives the whole campaign. Personalization goes through
+`assistantOverrides.variableValues` (confirmed: the bare `name` field on a Vapi customer
+does NOT get substituted into the assistant's prompt — every other sheet/CSV column
+does, via `{{column_name}}`). A `call` step with any other `provider` value prints a
+clear "not implemented" message rather than silently doing nothing or faking success —
+if you're asked to add a second voice provider, follow the same pattern as `voice.py`.
 
 ## 6. If it aborts on consecutive errors
 

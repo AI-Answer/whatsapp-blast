@@ -8,6 +8,7 @@ dependencies = []
 [project.scripts]
 whatsapp-blast = "whatsapp_blast.cli:main"
 whatsapp-blast-campaign = "whatsapp_blast.campaign:main"
+whatsapp-blast-voice = "whatsapp_blast.voice:_standalone_main"
 
 [build-system]
 requires = ["setuptools>=61"]

@@ -37,6 +37,7 @@ line where they'd land in shell history):
 export TWILIO_ACCOUNT_SID=ACxxxxxxxx
 export TWILIO_AUTH_TOKEN=xxxxxxxx
 export TWILIO_FROM=whatsapp:+15551234567   # or +15551234567 for SMS
+export VAPI_API_KEY=xxxxxxxx               # only needed for call steps
 ```
 
 ## Single-step usage (`whatsapp-blast`)
@@ -120,11 +121,13 @@ Each step has a `type` (`whatsapp` / `sms` / `call`) and an `offset_minutes` rel
 `webinar_start` (negative = before, positive = after). The orchestrator sleeps until
 each step's time, then runs it against the same lead sheet.
 
-**Call steps are not implemented.** There's no voice provider wired in yet — a `call`
-step prints a clear "skipped, not configured" message rather than silently doing
-nothing or faking success. Add real call-sending in `whatsapp_blast/voice.py` once
-you have credentials and an API to integrate (e.g. Vapi), then wire it into
-`campaign.py`'s step loop next to the `whatsapp`/`sms` branches.
+**Call steps** use [Vapi](https://vapi.ai) campaigns (`whatsapp_blast/voice.py`). A
+`call` step needs `provider: "vapi"`, `assistant_id`, and `phone_number_id`, plus
+`VAPI_API_KEY` in the environment. Personalization goes through
+`assistantOverrides.variableValues` (every non-phone column from the sheet/CSV becomes
+a `{{variable}}` in the assistant's prompt) — the bare Vapi `name` field does **not**
+get substituted into the prompt, only `variableValues` does. Any other `provider`
+value prints a clear "not implemented" message rather than silently doing nothing.
 
 ## Useful flags
 
