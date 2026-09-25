@@ -56,7 +56,13 @@ def launch_vapi_campaign(
     req = urllib.request.Request(
         "https://api.vapi.ai/v2/campaign",
         data=json.dumps(body).encode(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            # Vapi's API sits behind Cloudflare, which WAF-blocks (403, error 1010)
+            # urllib's default "Python-urllib/x.y" User-Agent. Any normal-looking UA works.
+            "User-Agent": "whatsapp-blast/0.1",
+        },
         method="POST",
     )
     try:
@@ -69,7 +75,7 @@ def launch_vapi_campaign(
 def get_campaign_status(campaign_id: str, api_key: str, timeout: int = 30) -> dict:
     req = urllib.request.Request(
         f"https://api.vapi.ai/v2/campaign/{campaign_id}",
-        headers={"Authorization": f"Bearer {api_key}"},
+        headers={"Authorization": f"Bearer {api_key}", "User-Agent": "whatsapp-blast/0.1"},
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
