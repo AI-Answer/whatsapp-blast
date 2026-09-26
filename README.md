@@ -116,7 +116,13 @@ whatsapp-blast-campaign --config campaign.json          # dry run: prints schedu
 whatsapp-blast-campaign --config campaign.json --send   # waits for each step's time, then sends
 ```
 
-See [`examples/campaign.example.json`](examples/campaign.example.json) for the format.
+See [`examples/campaign.example.json`](examples/campaign.example.json) for the format
+(placeholder SIDs/IDs), or [`examples/ai_business_bootcamp.json`](examples/ai_business_bootcamp.json)
+for a real config with verified-working template SIDs, Vapi assistant/phone IDs, and
+sender numbers from an actual end-to-end test run (update `webinar_start` and
+`sheet_url` before reusing it for a new event -- everything else in it is confirmed
+working). Neither file contains secrets -- those still only come from environment
+variables at runtime.
 Each step has a `type` (`whatsapp` / `sms` / `call`) and an `offset_minutes` relative to
 `webinar_start` (negative = before, positive = after). The orchestrator sleeps until
 each step's time, then runs it against the same lead sheet.

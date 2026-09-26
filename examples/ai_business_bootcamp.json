@@ -1,0 +1,17 @@
+{
+  "webinar_start": "2026-10-01T13:00:00-04:00",
+  "sheet_url": "https://docs.google.com/spreadsheets/d/1yRX4qXB7ANCXZoPWJRfYn6TE__QkkQ_ne-kUfavk3Yc/edit?gid=0#gid=0",
+  "assume_country_for_10_digit": "1",
+  "steps": [
+    { "type": "call", "offset_minutes": -120, "provider": "vapi",
+      "assistant_id": "f20a9f62-a21f-49c9-9e9e-95e9501bb09d",
+      "phone_number_id": "985b1809-a3ea-4459-a7dd-0d0acb0767d0",
+      "concurrency": 5 },
+    { "type": "sms", "offset_minutes": -20, "from": "+19163983595",
+      "message": "Hi {First Name}, the event is starting soon: {Join URL}" },
+    { "type": "whatsapp", "offset_minutes": -20, "from": "whatsapp:+15559157609",
+      "content_sid": "HXf6dcf0248689c6cbee15d418efef71a1" },
+    { "type": "whatsapp", "offset_minutes": 15, "from": "whatsapp:+15559157609",
+      "content_sid": "HX192e004c114849df61d336b53f0901fb" }
+  ]
+}
