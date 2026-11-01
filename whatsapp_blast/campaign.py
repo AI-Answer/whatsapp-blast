@@ -26,6 +26,7 @@ Example config (JSON, see examples/campaign.example.json):
 }
 """
 import argparse
+import csv
 import datetime
 import json
 import os
@@ -111,7 +112,11 @@ def main(argv=None) -> int:
               + (f" provider={s.get('provider')}" if s["type"] == "call" else ""))
 
     print("\nFetching leads...")
-    rows = load_google_sheet(config["sheet_url"], gid=config.get("gid"))
+    if config.get("csv_path"):
+        with open(config["csv_path"], newline="", encoding="utf-8-sig") as f:
+            rows = list(csv.DictReader(f))
+    else:
+        rows = load_google_sheet(config["sheet_url"], gid=config.get("gid"))
     targets, rejected, review, name_col = build_targets(rows, overrides, assume_country)
     print(f"  total rows: {len(rows)}, ready: {len(targets)}, "
           f"rejected: {len(rejected)}, needs review: {len(review)}")

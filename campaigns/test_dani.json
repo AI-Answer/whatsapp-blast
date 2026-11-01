@@ -1,0 +1,15 @@
+{
+  "_comment": "Fires every step IMMEDIATELY (webinar_start is in the past) to the single row in dani.csv. Test only.",
+  "webinar_start": "2020-01-01T14:00:00-05:00",
+  "csv_path": "dani.csv",
+  "assume_country_for_10_digit": "1",
+  "steps": [
+    { "type": "call", "offset_minutes": 0, "provider": "vapi",
+      "assistant_id": "f20a9f62-a21f-49c9-9e9e-95e9501bb09d",
+      "phone_number_id": "985b1809-a3ea-4459-a7dd-0d0acb0767d0", "concurrency": 1 },
+    { "type": "sms", "offset_minutes": 1, "from": "+19163983595",
+      "message": "Hi {name}, the webinar is starting soon: {Join URL}" },
+    { "type": "whatsapp", "offset_minutes": 2, "from": "whatsapp:+15559157609",
+      "content_sid": "HX17ca59a18bdd171994165c146ce286b0" }
+  ]
+}
